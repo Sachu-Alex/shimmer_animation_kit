@@ -3,23 +3,29 @@ import 'package:flutter/material.dart';
 import 'shimmer_theme.dart';
 
 /// Provides a single shared [AnimationController] to all descendant shimmer
-/// widgets, ensuring they pulse in perfect sync.
+/// widgets and applies a [ShaderMask] gradient across the entire subtree.
 ///
-/// Place [ShimmerScope] above any widget tree that contains shimmer widgets:
+/// Place [ShimmerScope] around any widget that should shimmer — typically a
+/// skeleton placeholder layout built from [ShimmerBox], [ShimmerCircleWidget],
+/// [ShimmerTextWidget], or custom white-filled containers:
+///
 /// ```dart
 /// ShimmerScope(
 ///   child: Column(
 ///     children: [
+///       ShimmerBox(width: double.infinity, height: 180),
 ///       ShimmerBox(width: 200, height: 20),
-///       ShimmerCircle(diameter: 48),
+///       ShimmerCircleWidget(diameter: 48),
 ///     ],
 ///   ),
 /// )
 /// ```
 ///
+/// Because the gradient is applied once at this level via [ShaderMask], every
+/// child is animated in perfect sync with zero per-widget rebuild cost.
+///
 /// When [MediaQueryData.disableAnimations] is `true` the controller is stopped
-/// and [ShimmerScope.of] returns the static value `0.5` so that the shimmer
-/// appears frozen at mid-point rather than invisible.
+/// and a static mid-point shimmer is shown.
 class ShimmerScope extends StatefulWidget {
   const ShimmerScope({
     super.key,
@@ -29,26 +35,32 @@ class ShimmerScope extends StatefulWidget {
 
   final Widget child;
 
-  /// Duration of one complete shimmer cycle. Defaults to 1500 ms.
+  /// Duration of one complete shimmer cycle. Defaults to 1 500 ms.
   final Duration duration;
 
-  /// Returns the current animation value (0.0 – 1.0) from the nearest
-  /// [ShimmerScope] ancestor, or `0.5` if no scope is present.
-  ///
-  /// When no [ShimmerScope] is found the shimmer is shown frozen at mid-point.
-  /// Wrap with [ShimmerScope] to get a live repeating animation.
+  /// Returns the current animation value (0.0–1.0) from the nearest
+  /// [ShimmerScope], or `0.5` when no scope is present.
   static double of(BuildContext context) {
-    final inherited =
-        context.dependOnInheritedWidgetOfExactType<_ShimmerScopeInherited>();
-    return inherited?.value ?? 0.5;
+    return context
+            .dependOnInheritedWidgetOfExactType<_ShimmerScopeInherited>()
+            ?.value ??
+        0.5;
   }
 
-  /// Returns the current animation value if a [ShimmerScope] ancestor exists,
+  /// Returns the animation value if a [ShimmerScope] ancestor exists,
   /// otherwise `null`.
   static double? maybeOf(BuildContext context) {
     return context
         .dependOnInheritedWidgetOfExactType<_ShimmerScopeInherited>()
         ?.value;
+  }
+
+  /// Returns `true` if a [ShimmerScope] ancestor is present **without**
+  /// subscribing to its updates (no per-frame rebuild side-effect).
+  static bool hasScope(BuildContext context) {
+    return context
+            .getElementForInheritedWidgetOfExactType<_ShimmerScopeInherited>() !=
+        null;
   }
 
   @override
@@ -58,48 +70,32 @@ class ShimmerScope extends StatefulWidget {
 class _ShimmerScopeState extends State<ShimmerScope>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Duration _effectiveDuration;
 
   @override
   void initState() {
     super.initState();
-    _effectiveDuration = widget.duration;
-    _controller = AnimationController(vsync: this, duration: _effectiveDuration)
+    _controller = AnimationController(vsync: this, duration: widget.duration)
       ..repeat();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncWithMediaQuery();
-
-    // Also honour ShimmerTheme duration if no explicit duration provided.
-    final theme = Theme.of(context).extension<ShimmerTheme>();
-    if (theme != null && widget.duration == const Duration(milliseconds: 1500)) {
-      if (_effectiveDuration != theme.duration) {
-        _effectiveDuration = theme.duration;
-        _controller.duration = _effectiveDuration;
-        _syncWithMediaQuery();
-      }
-    }
-  }
-
-  void _syncWithMediaQuery() {
     final disableAnimations = MediaQuery.of(context).disableAnimations;
     if (disableAnimations) {
-      _controller.stop();
-      _controller.value = 0.5;
+      _controller
+        ..stop()
+        ..value = 0.5;
     } else if (!_controller.isAnimating) {
       _controller.repeat();
     }
   }
 
   @override
-  void didUpdateWidget(ShimmerScope oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.duration != widget.duration) {
+  void didUpdateWidget(ShimmerScope old) {
+    super.didUpdateWidget(old);
+    if (old.duration != widget.duration) {
       _controller.duration = widget.duration;
-      _syncWithMediaQuery();
     }
   }
 
@@ -111,15 +107,39 @@ class _ShimmerScopeState extends State<ShimmerScope>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context).extension<ShimmerTheme>() ??
+        (Theme.of(context).brightness == Brightness.dark
+            ? ShimmerTheme.dark
+            : ShimmerTheme.light);
+
     return AnimatedBuilder(
       animation: _controller,
+      // widget.child is cached — it never rebuilds due to animation ticks.
+      child: widget.child,
       builder: (context, child) {
+        final value = _controller.value;
+
+        // Shift the three-stop gradient across the surface each frame.
+        final gradient = theme.direction.toGradient(
+          colors: [theme.baseColor, theme.highlightColor, theme.baseColor],
+          stops: [
+            (value - 0.3).clamp(0.0, 1.0),
+            value.clamp(0.0, 1.0),
+            (value + 0.3).clamp(0.0, 1.0),
+          ],
+        );
+
         return _ShimmerScopeInherited(
-          value: _controller.value,
-          child: child!,
+          value: value,
+          child: ShaderMask(
+            blendMode: BlendMode.srcATop,
+            shaderCallback: (bounds) => gradient.createShader(
+              Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+            ),
+            child: child!,
+          ),
         );
       },
-      child: widget.child,
     );
   }
 }

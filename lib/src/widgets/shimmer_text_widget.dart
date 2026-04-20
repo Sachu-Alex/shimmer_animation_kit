@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../shimmer_direction.dart';
-import '../shimmer_painter.dart';
 import '../shimmer_scope.dart';
-import '../shimmer_shapes.dart';
 import '../shimmer_theme.dart';
 
-/// A standalone animated shimmer text placeholder.
+/// An animated shimmer text placeholder — stacked bars that mimic a paragraph.
 ///
-/// Renders [lines] stacked shimmer bars that mimic a paragraph of text.
-/// Requires a [ShimmerScope] ancestor for animation sync.
+/// **Inside a [ShimmerScope]** (recommended): renders solid white bars. The
+/// parent [ShimmerScope] applies the animated gradient via [ShaderMask].
+///
+/// **Standalone**: renders static grey bars.
 ///
 /// ```dart
-/// ShimmerTextWidget(lines: 3, lineHeight: 12, lineSpacing: 6)
+/// ShimmerScope(
+///   child: ShimmerTextWidget(lines: 3, width: 240),
+/// )
 /// ```
 class ShimmerTextWidget extends StatelessWidget {
   const ShimmerTextWidget({
@@ -30,7 +32,10 @@ class ShimmerTextWidget extends StatelessWidget {
   final int lines;
   final double lineHeight;
   final double lineSpacing;
+
+  /// Width fraction (0–1) of the last line relative to [width].
   final double lastLineWidthFraction;
+
   final double width;
   final Color? baseColor;
   final Color? highlightColor;
@@ -38,32 +43,28 @@ class ShimmerTextWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).extension<ShimmerTheme>() ??
-        (Theme.of(context).brightness == Brightness.dark
-            ? ShimmerTheme.dark
-            : ShimmerTheme.light);
+    final inScope = ShimmerScope.hasScope(context);
+    final fallbackColor = baseColor ??
+        (Theme.of(context).extension<ShimmerTheme>() ?? ShimmerTheme.light)
+            .baseColor;
 
-    final animValue = ShimmerScope.of(context);
-    final totalHeight =
-        lines * lineHeight + (lines - 1).clamp(0, lines) * lineSpacing;
-
-    final shape = ShimmerText(
-      lines: lines,
-      lineHeight: lineHeight,
-      lineSpacing: lineSpacing,
-      lastLineWidthFraction: lastLineWidthFraction,
-      width: width,
-    );
-
-    return CustomPaint(
-      size: Size(width, totalHeight),
-      painter: ShimmerPainter(
-        shapes: [shape],
-        animationValue: animValue,
-        baseColor: baseColor ?? theme.baseColor,
-        highlightColor: highlightColor ?? theme.highlightColor,
-        direction: direction ?? theme.direction,
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(lines, (i) {
+        final isLast = i == lines - 1;
+        return Padding(
+          padding: EdgeInsets.only(bottom: isLast ? 0 : lineSpacing),
+          child: Container(
+            width: isLast ? width * lastLineWidthFraction : width,
+            height: lineHeight,
+            decoration: BoxDecoration(
+              color: inScope ? Colors.white : fallbackColor,
+              borderRadius: const BorderRadius.all(Radius.circular(2)),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

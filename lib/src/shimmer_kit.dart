@@ -8,49 +8,72 @@ import 'shimmer_theme.dart';
 
 /// The primary shimmer widget.
 ///
-/// Wrap any widget with [ShimmerKit] and toggle [isLoading] to switch between
-/// the real content and an animated shimmer skeleton that matches its layout:
+/// ### Recommended — explicit skeleton
+///
+/// Provide a [skeleton] built from [ShimmerBox], [ShimmerCircleWidget],
+/// [ShimmerTextWidget] or any white-filled containers. [ShimmerKit] wraps it
+/// in a [ShimmerScope] so the gradient flows across the whole layout:
 ///
 /// ```dart
-/// ShimmerScope(
-///   child: ShimmerKit(
-///     isLoading: _loading,
-///     child: MyProfileCard(),
+/// ShimmerKit(
+///   isLoading: _loading,
+///   skeleton: Column(
+///     children: [
+///       ShimmerBox(width: double.infinity, height: 180),
+///       SizedBox(height: 12),
+///       Row(children: [
+///         ShimmerCircleWidget(diameter: 48),
+///         SizedBox(width: 12),
+///         ShimmerTextWidget(lines: 2, width: 160),
+///       ]),
+///     ],
 ///   ),
+///   child: MyRealContent(),
 /// )
 /// ```
 ///
-/// When [isLoading] is `false` the [child] is rendered normally.
-/// When [isLoading] is `true` the widget tree is analysed with `detectShapes`
-/// and a [CustomPaint] shimmer overlay is shown in its place.
+/// ### Fallback — auto-detect
 ///
-/// Colors default to [ShimmerTheme] from the nearest [Theme] if not provided.
+/// Omit [skeleton] and [ShimmerKit] walks the [child] widget tree to infer
+/// placeholder shapes. Works well for simple layouts; prefer the explicit
+/// skeleton approach for complex screens.
 class ShimmerKit extends StatelessWidget {
   const ShimmerKit({
     super.key,
     required this.child,
     required this.isLoading,
+    this.skeleton,
     this.baseColor,
     this.highlightColor,
     this.direction,
     this.duration = const Duration(milliseconds: 1500),
   });
 
+  /// The real content shown when [isLoading] is `false`.
   final Widget child;
 
   /// When `true` shows the shimmer skeleton; when `false` shows [child].
   final bool isLoading;
 
-  /// Overrides [ShimmerTheme.baseColor].
+  /// Optional explicit skeleton layout. When provided, [ShimmerKit] wraps it
+  /// in a [ShimmerScope] so the gradient covers the entire layout via
+  /// [ShaderMask] — exactly like the popular `shimmer` package.
+  ///
+  /// Skeleton widgets should use white or opaque fills so the gradient is
+  /// visible. [ShimmerBox], [ShimmerCircleWidget] and [ShimmerTextWidget]
+  /// handle this automatically.
+  final Widget? skeleton;
+
+  /// Overrides [ShimmerTheme.baseColor] (auto-detect mode only).
   final Color? baseColor;
 
-  /// Overrides [ShimmerTheme.highlightColor].
+  /// Overrides [ShimmerTheme.highlightColor] (auto-detect mode only).
   final Color? highlightColor;
 
-  /// Overrides [ShimmerTheme.direction].
+  /// Overrides [ShimmerTheme.direction] (auto-detect mode only).
   final ShimmerDirection? direction;
 
-  /// Shimmer animation duration — only used when no parent [ShimmerScope] is
+  /// Shimmer animation duration. Only used when no parent [ShimmerScope] is
   /// present. Prefer wrapping with [ShimmerScope] to sync multiple widgets.
   final Duration duration;
 
@@ -58,6 +81,19 @@ class ShimmerKit extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isLoading) return child;
 
+    // ── Skeleton mode — like the shimmer package ───────────────────────────
+    if (skeleton != null) {
+      final scope = Semantics(
+        label: 'Loading',
+        excludeSemantics: true,
+        child: skeleton!,
+      );
+      // Avoid double-wrapping if already inside a ShimmerScope.
+      if (ShimmerScope.hasScope(context)) return scope;
+      return ShimmerScope(duration: duration, child: scope);
+    }
+
+    // ── Auto-detect fallback ───────────────────────────────────────────────
     final theme = Theme.of(context).extension<ShimmerTheme>() ??
         (Theme.of(context).brightness == Brightness.dark
             ? ShimmerTheme.dark
@@ -74,10 +110,11 @@ class ShimmerKit extends StatelessWidget {
       excludeSemantics: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final animValue = _animationValue(context);
+          final animValue = ShimmerScope.of(context);
           return SizedBox(
             width: constraints.maxWidth.isFinite ? constraints.maxWidth : 200,
-            height: constraints.maxHeight.isFinite ? constraints.maxHeight : 100,
+            height:
+                constraints.maxHeight.isFinite ? constraints.maxHeight : 100,
             child: CustomPaint(
               painter: ShimmerPainter(
                 shapes: shapes,
@@ -91,14 +128,5 @@ class ShimmerKit extends StatelessWidget {
         },
       ),
     );
-  }
-
-  /// Reads animation value from [ShimmerScope] if present, otherwise 0.5.
-  double _animationValue(BuildContext context) {
-    try {
-      return ShimmerScope.of(context);
-    } catch (_) {
-      return 0.5;
-    }
   }
 }

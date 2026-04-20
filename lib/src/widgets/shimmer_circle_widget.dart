@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../shimmer_direction.dart';
-import '../shimmer_painter.dart';
 import '../shimmer_scope.dart';
-import '../shimmer_shapes.dart';
 import '../shimmer_theme.dart';
 
-/// A standalone animated shimmer circle.
+/// An animated shimmer circle.
 ///
-/// Requires a [ShimmerScope] ancestor for animation sync. Falls back to the
-/// [ShimmerTheme] in the nearest [Theme] for colors.
+/// **Inside a [ShimmerScope]** (recommended): renders a solid white circle.
+/// The parent [ShimmerScope] applies the animated gradient via [ShaderMask].
+///
+/// **Standalone**: renders a static placeholder filled with [baseColor].
 ///
 /// ```dart
-/// ShimmerCircleWidget(diameter: 48)
+/// ShimmerScope(
+///   child: Row(
+///     children: [
+///       ShimmerCircleWidget(diameter: 48),
+///       SizedBox(width: 12),
+///       ShimmerTextWidget(lines: 2, width: 160),
+///     ],
+///   ),
+/// )
 /// ```
 class ShimmerCircleWidget extends StatelessWidget {
   const ShimmerCircleWidget({
@@ -30,21 +38,17 @@ class ShimmerCircleWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).extension<ShimmerTheme>() ??
-        (Theme.of(context).brightness == Brightness.dark
-            ? ShimmerTheme.dark
-            : ShimmerTheme.light);
-
-    final animValue = ShimmerScope.of(context);
-
-    return CustomPaint(
-      size: Size(diameter, diameter),
-      painter: ShimmerPainter(
-        shapes: [ShimmerCircle(diameter: diameter)],
-        animationValue: animValue,
-        baseColor: baseColor ?? theme.baseColor,
-        highlightColor: highlightColor ?? theme.highlightColor,
-        direction: direction ?? theme.direction,
+    return Container(
+      width: diameter,
+      height: diameter,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: ShimmerScope.hasScope(context)
+            ? Colors.white
+            : (baseColor ??
+                (Theme.of(context).extension<ShimmerTheme>() ??
+                        ShimmerTheme.light)
+                    .baseColor),
       ),
     );
   }
