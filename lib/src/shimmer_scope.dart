@@ -33,15 +33,22 @@ class ShimmerScope extends StatefulWidget {
   final Duration duration;
 
   /// Returns the current animation value (0.0 – 1.0) from the nearest
-  /// [ShimmerScope] ancestor.
+  /// [ShimmerScope] ancestor, or `0.5` if no scope is present.
   ///
-  /// Returns `0.5` when animations are disabled by the system.
+  /// When no [ShimmerScope] is found the shimmer is shown frozen at mid-point.
+  /// Wrap with [ShimmerScope] to get a live repeating animation.
   static double of(BuildContext context) {
     final inherited =
         context.dependOnInheritedWidgetOfExactType<_ShimmerScopeInherited>();
-    assert(inherited != null,
-        'No ShimmerScope found. Wrap your widget tree with a ShimmerScope.');
-    return inherited!.value;
+    return inherited?.value ?? 0.5;
+  }
+
+  /// Returns the current animation value if a [ShimmerScope] ancestor exists,
+  /// otherwise `null`.
+  static double? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_ShimmerScopeInherited>()
+        ?.value;
   }
 
   @override

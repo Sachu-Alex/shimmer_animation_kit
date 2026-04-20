@@ -1,3 +1,12 @@
+## 0.1.1
+
+* **Fix:** `ShimmerScope.of()` no longer throws an assertion error when no
+  `ShimmerScope` ancestor is present. It now returns `0.5` as a safe fallback,
+  so manual widgets (`ShimmerBox`, `ShimmerCircleWidget`, etc.) can be used
+  without a scope — they will display a static shimmer instead of animating.
+* Added `ShimmerScope.maybeOf(context)` → `double?` for callers that want to
+  distinguish "scope present" from "no scope".
+
 ## 0.1.0
 
 * Initial release.

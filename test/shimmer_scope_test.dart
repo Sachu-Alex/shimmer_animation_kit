@@ -75,21 +75,36 @@ void main() {
       expect(captured, 0.5);
     });
 
-    testWidgets('throws assertion when used without a ShimmerScope ancestor',
+    testWidgets('returns 0.5 fallback when used without a ShimmerScope ancestor',
         (tester) async {
+      double? value;
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
             builder: (context) {
-              expect(
-                () => ShimmerScope.of(context),
-                throwsAssertionError,
-              );
+              value = ShimmerScope.of(context);
               return const SizedBox.shrink();
             },
           ),
         ),
       );
+      expect(value, 0.5);
+    });
+
+    testWidgets('maybeOf returns null without a ShimmerScope ancestor',
+        (tester) async {
+      double? value = 1.0; // sentinel
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              value = ShimmerScope.maybeOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      expect(value, isNull);
     });
   });
 }
