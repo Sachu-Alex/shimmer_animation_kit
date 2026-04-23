@@ -1,3 +1,7 @@
+## 0.3.0
+
+* **Fix:** Corrected `homepage`, `repository`, and `issue_tracker` URLs in `pubspec.yaml` to point to the valid GitHub repository.
+
 ## 0.2.0
 
 **Breaking behavior change** — `ShimmerScope` now applies a `ShaderMask` over
